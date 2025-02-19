@@ -109,6 +109,23 @@ RSpec.describe "bundle install with gem sources" do
       expect(the_bundle).to include_gems("myrack 1.0.0")
     end
 
+    it "does not state that it's constantly reinstalling empty gems" do
+      build_repo4 do
+        build_gem "empty", "1.0.0", no_default: true, allowed_warning: "no files specified"
+      end
+
+      install_gemfile <<~G
+        source "https://gem.repo4"
+
+        gem "empty"
+      G
+      gem_dir = default_bundle_path("gems/empty-1.0.0")
+      expect(gem_dir).to be_empty
+
+      bundle "install --verbose"
+      expect(out).not_to include("Installing empty")
+    end
+
     it "fetches gems when multiple versions are specified" do
       install_gemfile <<-G
         source "https://gem.repo1"
@@ -570,7 +587,7 @@ RSpec.describe "bundle install with gem sources" do
 
       bundle :install, raise_on_error: false
 
-      expect(err).to include("Two gemspecs have conflicting requirements on the same gem: rubocop (~> 1.36.0, development) and rubocop (~> 2.0, development). Bundler cannot continue.")
+      expect(err).to include("Two gemspec development dependencies have conflicting requirements on the same gem: rubocop (~> 1.36.0) and rubocop (~> 2.0). Bundler cannot continue.")
     end
 
     it "warns when a Gemfile dependency is overriding a gemspec development dependency, with different requirements" do
@@ -1593,6 +1610,26 @@ RSpec.describe "bundle install with gem sources" do
       G
 
       expect(out).to include("Fetching foo 1.0.1").and include("Installing foo 1.0.1").and include("Fetching b 1.0.0").and include("Installing b 1.0.0")
+      expect(last_command).to be_success
+    end
+
+    it "resolves to the latest version if no gems are available locally" do
+      build_repo4 do
+        build_gem "myreline", "0.3.8"
+        build_gem "debug", "0.2.1"
+
+        build_gem "debug", "1.10.0" do |s|
+          s.add_dependency "myreline"
+        end
+      end
+
+      install_gemfile <<~G, "prefer-local": true, verbose: true
+        source "https://gem.repo4"
+
+        gem "debug"
+      G
+
+      expect(out).to include("Fetching debug 1.10.0").and include("Installing debug 1.10.0").and include("Fetching myreline 0.3.8").and include("Installing myreline 0.3.8")
       expect(last_command).to be_success
     end
   end

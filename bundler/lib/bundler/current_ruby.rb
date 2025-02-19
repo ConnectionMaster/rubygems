@@ -24,8 +24,8 @@ module Bundler
       # deprecated
       mswin: [Gem::Platform::MSWIN, CurrentRuby::ALL_RUBY_VERSIONS],
       mswin64: [Gem::Platform::MSWIN64, CurrentRuby::ALL_RUBY_VERSIONS - [18]],
-      mingw: [Gem::Platform::MINGW, CurrentRuby::ALL_RUBY_VERSIONS],
-      x64_mingw: [Gem::Platform::X64_MINGW, CurrentRuby::ALL_RUBY_VERSIONS - [18, 19]],
+      mingw: [Gem::Platform::UNIVERSAL_MINGW, CurrentRuby::ALL_RUBY_VERSIONS],
+      x64_mingw: [Gem::Platform::UNIVERSAL_MINGW, CurrentRuby::ALL_RUBY_VERSIONS - [18, 19]],
     }.each_with_object({}) do |(platform, spec), hash|
       hash[platform] = spec[0]
       spec[1]&.each {|version| hash[:"#{platform}_#{version}"] = spec[0] }
@@ -50,6 +50,18 @@ module Bundler
     end
 
     def maglev?
+      message =
+        "`CurrentRuby#maglev?` is deprecated with no replacement. Please use the " \
+        "built-in Ruby `RUBY_ENGINE` constant to check the Ruby implementation you are running on."
+      removed_message =
+        "`CurrentRuby#maglev?` was removed with no replacement. Please use the " \
+        "built-in Ruby `RUBY_ENGINE` constant to check the Ruby implementation you are running on."
+      internally_exempted = caller_locations(1, 1).first.path == __FILE__
+
+      unless internally_exempted
+        SharedHelpers.major_deprecation(2, message, removed_message: removed_message, print_caller_location: true)
+      end
+
       RUBY_ENGINE == "maglev"
     end
 
@@ -71,11 +83,23 @@ module Bundler
         RUBY_VERSION.start_with?("#{version}.")
       end
 
-      all_platforms = PLATFORM_MAP.keys << "maglev"
-      all_platforms.each do |platform|
+      PLATFORM_MAP.keys.each do |platform|
         define_method(:"#{platform}_#{trimmed_version}?") do
           send(:"#{platform}?") && send(:"on_#{trimmed_version}?")
         end
+      end
+
+      define_method(:"maglev_#{trimmed_version}?") do
+        message =
+          "`CurrentRuby##{__method__}` is deprecated with no replacement. Please use the " \
+          "built-in Ruby `RUBY_ENGINE` and `RUBY_VERSION` constants to perform a similar check."
+        removed_message =
+          "`CurrentRuby##{__method__}` was removed with no replacement. Please use the " \
+          "built-in Ruby `RUBY_ENGINE` and `RUBY_VERSION` constants to perform a similar check."
+
+        SharedHelpers.major_deprecation(2, message, removed_message: removed_message, print_caller_location: true)
+
+        send(:"maglev?") && send(:"on_#{trimmed_version}?")
       end
     end
   end
